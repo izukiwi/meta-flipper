@@ -1,0 +1,20 @@
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Cache Python et compilation
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Fichiers de configuration sensibles et variables d'environnement
+.env
+
+# Fichiers système et journaux
+*.log
+.DS_Store
+Thumbs.db
+
+# Configuration locale VS Code (optionnel, selon tes préférences d'équipe)
+.vscode/
