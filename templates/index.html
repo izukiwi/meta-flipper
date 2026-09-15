@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Détecteur Ray-Ban Meta</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #060b0d;
+            color: #00ffaa;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #status {
+            margin-bottom: 8px;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        canvas {
+            border: 1px solid #004d33;
+            border-radius: 50%;
+            background: radial-gradient(circle, #021a13 0%, #030a08 80%);
+            box-shadow: 0 0 35px rgba(0, 255, 170, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="status">RADAR ACTIF — À L'ÉCOUTE DES TRAMES BLE</div>
+    <canvas id="radar" width="600" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById("radar");
+        const ctx = canvas.getContext("2d");
+        const center = canvas.width / 2;
+        const maxRadius = center - 20;
+        const MAX_DISTANCE_M = 15;
+
+        const targets = new Map();
+        let sweepAngle = 0;
+
+        // Connexion WebSocket
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            targets.set(data.address, {
+                ...data,
+                lastSeen: Date.now()
+            });
+        };
+
+        function drawGrid() {
+            ctx.strokeStyle = "#00402b";
+            ctx.lineWidth = 1;
+
+            // Cercles concentriques (distances : 3m, 6m, 9m, 12m, 15m)
+            const circles = 5;
+            for (let i = 1; i <= circles; i++) {
+                const r = (maxRadius / circles) * i;
+                ctx.beginPath();
+                ctx.arc(center, center, r, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = "#007a52";
+                ctx.font = "10px monospace";
+                ctx.fillText(`${(MAX_DISTANCE_M / circles) * i}m`, center + 4, center - r + 12);
+            }
+
+            // Axes en croix
+            ctx.beginPath();
+            ctx.moveTo(center, 10);
+            ctx.lineTo(center, canvas.height - 10);
+            ctx.moveTo(10, center);
+            ctx.lineTo(canvas.width - 10, center);
+            ctx.stroke();
+        }
+
+        function drawSweep() {
+            ctx.save();
+            ctx.translate(center, center);
+            ctx.rotate(sweepAngle);
+
+            // Faisceau lumineux dégradé
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, maxRadius);
+            gradient.addColorStop(0, "rgba(0, 255, 170, 0.2)");
+            gradient.addColorStop(1, "rgba(0, 255, 170, 0)");
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, maxRadius, -Math.PI / 10, 0);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Ligne de balayage principale
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(maxRadius, 0);
+            ctx.strokeStyle = "#00ffaa";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+            sweepAngle = (sweepAngle + 0.03) % (Math.PI * 2);
+        }
+
+        function drawTargets() {
+            const now = Date.now();
+
+            targets.forEach((target, address) => {
+                const ageSec = (now - target.lastSeen) / 1000;
+                if (ageSec > 10) {
+                    targets.delete(address); // Disparition après 10 s sans trame
+                    return;
+                }
+
+                // Opacité dégressive selon le temps écoulé
+                const alpha = Math.max(0.1, 1 - ageSec / 10);
+                const r = (Math.min(target.distance, MAX_DISTANCE_M) / MAX_DISTANCE_M) * maxRadius;
+                const rad = (target.angle * Math.PI) / 180;
+                const x = center + r * Math.cos(rad);
+                const y = center + r * Math.sin(rad);
+
+                // Point de détection (blip)
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 255, 170, ${alpha})`;
+                ctx.shadowColor = "#00ffaa";
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Label descriptif
+                ctx.fillStyle = `rgba(0, 255, 170, ${alpha})`;
+                ctx.font = "11px monospace";
+                ctx.fillText(`${target.distance}m [${target.rssi}dBm]`, x + 9, y + 4);
+                ctx.fillText(target.address.slice(-8), x + 9, y + 16);
+            });
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawSweep();
+            drawTargets();
+            requestAnimationFrame(render);
+        }
+
+        render();
+    </script>
+</body>
+
+</html>
