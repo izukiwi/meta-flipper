@@ -23,3 +23,6 @@ Commandes vocales disponibles
 "salut meta tu es avec moi" : joue un bip sonore de confirmation.
 
 "ok lance le programme" : lance l'animation de démarrage dans la console.
+"meta active le portail" : active la pulsation des LEDs et joue le son d'ouverture.
+"meta desactive le portail" : éteint les LEDs et joue le son de fermeture.
+"meta fin de programme" : coupe les sorties et quitte le script.
