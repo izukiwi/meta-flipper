@@ -1,10 +1,33 @@
 import os
 import sys
 import time
-from gpiozero import LEDBoard
+from gpiozero import LEDBoard, TonalBuzzer
+from gpiozero.tones import Tone
 import speech_recognition as sr
 
 leds_portail = LEDBoard(17, 27, 22, 10, pwm=True)
+buzzer = TonalBuzzer(18, octaves=2)
+
+def son_ouverture():
+    for freq in range(300, 1250, 60):
+        buzzer.play(Tone(freq))
+        time.sleep(0.02)
+    buzzer.stop()
+
+def son_fermeture():
+    for freq in range(1000, 240, -60):
+        buzzer.play(Tone(freq))
+        time.sleep(0.025)
+    buzzer.stop()
+
+def son_bip():
+    buzzer.play(Tone(523))
+    time.sleep(0.07)
+    buzzer.stop()
+    time.sleep(0.04)
+    buzzer.play(Tone(784))
+    time.sleep(0.07)
+    buzzer.stop()
 
 def animation_chargement():
     os.system('clear')
@@ -24,9 +47,13 @@ def animation_chargement():
 
     for etape in etapes:
         print(etape, flush=True)
-        time.sleep(0.25)
+        # Petit clic sonore à chaque ligne qui défile
+        buzzer.play(Tone(800))
+        time.sleep(0.02)
+        buzzer.stop()
+        time.sleep(0.2)
 
-    time.sleep(0.8)
+    time.sleep(0.5)
     os.system('clear')
     afficher_interface()
 
@@ -48,28 +75,39 @@ def ecouter_labo():
             try:
                 audio = reconnaissance.listen(source, timeout=None, phrase_time_limit=5)
                 texte = reconnaissance.recognize_google(audio, language="fr-FR").lower()
-                texte_nettoye = texte.replace(",", "").replace(".", "").strip()
+                texte_nettoye = (
+                    texte.replace(",", "")
+                    .replace(".", "")
+                    .replace("méta", "meta")
+                    .replace("désactive", "desactive")
+                    .strip()
+                )
                 print(f"🗣️ Entendu : \"{texte}\"")
 
-                if "salut méta tu es avec moi" in texte_nettoye:
-                    print ("\nToujours présent, je suis à votre écoute")
+                if "salut meta tu es avec moi" in texte_nettoye:
+                    son_bip()
+                    print("\nToujours présent, je suis à votre écoute\n")
 
                 elif "ok lance le programme" in texte_nettoye:
-                        animation_chargement()
+                    animation_chargement()
 
-                elif "méta active le portail" in texte_nettoye:
+                elif "meta active le portail" in texte_nettoye:
                     print("\n🟢 [RICKLAB] : OUVERTURE DU PORTAIL EN COURS !")
+                    son_ouverture()
                     leds_portail.pulse(fade_in_time=1.2, fade_out_time=1.2, background=True)
-                    print("\n[Portail actif - En attente de l'ordre d'extinction...]\n")
+                    print("[Portail actif - En attente de l'ordre d'extinction...]")
 
-                elif "méta désactive le portail" in texte_nettoye:
+                elif "meta desactive le portail" in texte_nettoye:
                     print("\n🔒 [RICKLAB] : FERMETURE DU PORTAIL...")
+                    son_fermeture()
                     leds_portail.off()
                     print("Retour en veille.\n")
                     print("[À l'écoute...]")
 
-                elif "méta fin de programme" in texte_nettoye:
-                    print("\n[RICKLAB] : ARRET DU PROGRAMME")
+                elif "meta fin de programme" in texte_nettoye:
+                    print("\n[RICKLAB] : ARRÊT DU PROGRAMME")
+                    son_fermeture()
+                    leds_portail.off()
                     break
 
             except sr.UnknownValueError:
@@ -79,6 +117,7 @@ def ecouter_labo():
                 break
             except KeyboardInterrupt:
                 leds_portail.off()
+                buzzer.stop()
                 print("\nArrêt d'urgence du système.")
                 break
 
